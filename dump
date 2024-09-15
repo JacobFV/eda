@@ -1,0 +1,1692 @@
+./next.config.js:
+
+```
+/**
+ * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
+ * for Docker builds.
+ */
+await import("./src/env.js");
+
+/** @type {import("next").NextConfig} */
+const config = {
+  reactStrictMode: true,
+
+  /**
+   * If you are using `appDir` then you must comment the below `i18n` config out.
+   *
+   * @see https://github.com/vercel/next.js/issues/41980
+   */
+  i18n: {
+    locales: ["en"],
+    defaultLocale: "en",
+  },
+  transpilePackages: ["geist"],
+};
+
+export default config;
+
+```
+
+./package.json:
+
+```
+{
+  "name": "eda",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "dev": "next dev",
+    "lint": "next lint",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@auth/drizzle-adapter": "^1.1.0",
+    "@t3-oss/env-nextjs": "^0.10.1",
+    "@tanstack/react-query": "^5.50.0",
+    "@trpc/client": "^11.0.0-rc.446",
+    "@trpc/next": "^11.0.0-rc.446",
+    "@trpc/react-query": "^11.0.0-rc.446",
+    "@trpc/server": "^11.0.0-rc.446",
+    "drizzle-orm": "^0.33.0",
+    "geist": "^1.3.0",
+    "next": "^14.2.4",
+    "next-auth": "^4.24.7",
+    "postgres": "^3.4.4",
+    "react": "^18.3.1",
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
+    "react-dom": "^18.3.1",
+    "react-flow-renderer": "^10.3.17",
+    "superjson": "^2.2.1",
+    "zod": "^3.23.3",
+    "zustand": "^5.0.0-rc.2"
+  },
+  "devDependencies": {
+    "@types/eslint": "^8.56.10",
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.1.0",
+    "@typescript-eslint/parser": "^8.1.0",
+    "drizzle-kit": "^0.24.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.4",
+    "eslint-plugin-drizzle": "^0.2.3",
+    "postcss": "^8.4.39",
+    "prettier": "^3.3.2",
+    "prettier-plugin-tailwindcss": "^0.6.5",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.5.3"
+  },
+  "ct3aMetadata": {
+    "initVersion": "7.37.0"
+  }
+}
+
+```
+
+./postcss.config.cjs:
+
+```
+const config = {
+  plugins: {
+    tailwindcss: {},
+  },
+};
+
+module.exports = config;
+
+```
+
+./prettier.config.js:
+
+```
+/** @type {import('prettier').Config & import('prettier-plugin-tailwindcss').PluginOptions} */
+const config = {
+  plugins: ["prettier-plugin-tailwindcss"],
+};
+
+export default config;
+
+```
+
+
+./public/manifest.json:
+
+```
+{
+  "short_name": "WebEDA",
+  "name": "Web Electronic Design Automation Tool",
+  "icons": [
+    {
+      "src": "assets/icons/icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "assets/icons/icon-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff"
+}
+
+```
+
+./public/sw.js:
+
+```
+const CACHE_NAME = 'webeda-cache-v1';
+const urlsToCache = [
+    '/',
+    '/index.html',
+    '/index.js',
+    '/styles/styles.css',
+    '/manifest.json',
+    // Add other assets as needed
+];
+
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then((cache) => {
+                console.log('Opened cache');
+                return cache.addAll(urlsToCache);
+            })
+    );
+});
+
+self.addEventListener('fetch', (event) => {
+    event.respondWith(
+        caches.match(event.request)
+            .then((response) => {
+                if (response) {
+                    return response;
+                }
+                return fetch(event.request);
+            })
+    );
+});
+
+```
+
+
+./src: env.js
+./src/components: 
+./src/components/pcb: PCBComponentsPanel.tsx, PCBDraggableComponent.tsx, PCBEditorCanvas.tsx, PCBLayersPanel.tsx, PCBToolsPanel.tsx, PCBTrace.tsx
+./src/components/pcb/PCBComponentsPanel.tsx:
+
+```
+import React from "react";
+import { useDrag } from "react-dnd";
+
+const PCB_COMPONENTS = [
+  { type: "Resistor" },
+  { type: "Capacitor" },
+  { type: "IC" },
+  { type: "Connector" },
+  // Add more PCB-specific components as needed
+];
+
+interface PCBComponentItemProps {
+  type: string;
+}
+
+const PCBComponentItem: React.FC<PCBComponentItemProps> = ({ type }) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: "pcb-component",
+    item: { type },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+  }));
+
+  return (
+    <div
+      ref={drag}
+      className={`m-2 cursor-grab rounded border bg-white p-2 ${
+        isDragging ? "opacity-50" : "opacity-100"
+      }`}
+    >
+      {type}
+    </div>
+  );
+};
+
+const PCBComponentsPanel: React.FC = () => {
+  return (
+    <div className="fixed left-0 top-0 h-full w-64 overflow-y-auto bg-gray-100 p-4">
+      <h2 className="mb-4 text-xl font-bold">PCB Components</h2>
+      {PCB_COMPONENTS.map((comp) => (
+        <PCBComponentItem key={comp.type} type={comp.type} />
+      ))}
+    </div>
+  );
+};
+
+export default PCBComponentsPanel;
+
+```
+
+./src/components/pcb/PCBDraggableComponent.tsx:
+
+```
+// src/components/pcb/PCBDraggableComponent.tsx
+
+import React from "react";
+import { useDrag } from "react-dnd";
+import { usePCBEditorStore } from "../../context/PCBEditorContext";
+import { ComponentType, PinType } from "../../types/pcb";
+
+interface PCBDraggableComponentProps {
+  component: ComponentType;
+  onPinClick: (componentId: string, pinId: string) => void;
+}
+
+const PCBDraggableComponent: React.FC<PCBDraggableComponentProps> = ({
+  component,
+  onPinClick,
+}) => {
+  const updateComponent = usePCBEditorStore((state) => state.updateComponent);
+  const removeComponent = usePCBEditorStore((state) => state.removeComponent);
+
+  const [{ isDragging }, drag] = useDrag(
+    () => ({
+      type: "existing-pcb-component",
+      item: { id: component.id },
+      collect: (monitor) => ({
+        isDragging: !!monitor.isDragging(),
+      }),
+    }),
+    [component.id],
+  );
+
+  const handleDrag = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    const origX = component.x;
+    const origY = component.y;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      // Convert delta to mm based on canvas scaling
+      const deltaMMX = Math.round(deltaX / 10) * 0.5; // Adjust divisor based on canvas scaling
+      const deltaMMY = Math.round(deltaY / 10) * 0.5;
+
+      const newX = Math.round((origX + deltaMMX) / 0.5) * 0.5;
+      const newY = Math.round((origY + deltaMMY) / 0.5) * 0.5;
+
+      updateComponent(component.id, { x: newX, y: newY });
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  const handleRemove = () => {
+    if (confirm("Remove this component?")) {
+      removeComponent(component.id);
+    }
+  };
+
+  const handlePinClick = (pinId: string) => {
+    onPinClick(component.id, pinId);
+  };
+
+  return (
+    <div
+      ref={drag}
+      onMouseDown={handleDrag}
+      className={`absolute cursor-move rounded border bg-blue-300 p-4 ${
+        isDragging ? "opacity-50" : "opacity-100"
+      }`}
+      style={{
+        top: `${component.y}mm`,
+        left: `${component.x}mm`,
+        transform: `rotate(${component.rotation}deg)`,
+      }}
+      title={`Type: ${component.type}`}
+    >
+      {component.type}
+      <button
+        onClick={handleRemove}
+        className="absolute right-0 top-0 text-sm text-red-500"
+        title="Remove Component"
+      >
+        &times;
+      </button>
+      {/* Render Pins */}
+      <div className="absolute -top-2 left-1/2 -translate-x-1/2 transform">
+        {component.pins.map((pin) => (
+          <div
+            key={pin.id}
+            onClick={() => handlePinClick(pin.id)}
+            className="m-1 h-2 w-2 cursor-pointer rounded-full bg-black"
+            title={pin.name}
+          ></div>
+        ))}
+      </div>
+      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 transform">
+        {component.pins.map((pin) => (
+          <div
+            key={pin.id}
+            onClick={() => handlePinClick(pin.id)}
+            className="m-1 h-2 w-2 cursor-pointer rounded-full bg-black"
+            title={pin.name}
+          ></div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default PCBDraggableComponent;
+
+```
+
+./src/components/pcb/PCBEditorCanvas.tsx:
+
+```
+// src/components/pcb/PCBEditorCanvas.tsx
+
+import React, { useRef, useState } from "react";
+import { useDrop } from "react-dnd";
+import { usePCBEditorStore } from "../../context/PCBEditorContext";
+import { ComponentType, TraceType } from "../../types/pcb";
+import { v4 as uuidv4 } from "uuid";
+import PCBDraggableComponent from "./PCBDraggableComponent";
+import PCBTrace from "./PCBTrace";
+
+const GRID_SIZE = 0.5; // mm
+
+const PCBEditorCanvas: React.FC = () => {
+  const addComponent = usePCBEditorStore((state) => state.addComponent);
+  const components = usePCBEditorStore((state) => state.components);
+  const traces = usePCBEditorStore((state) => state.traces);
+  const layers = usePCBEditorStore((state) => state.layers);
+  const addTrace = usePCBEditorStore((state) => state.addTrace);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  const [routingMode, setRoutingMode] = useState<boolean>(false);
+  const [traceStart, setTraceStart] = useState<{
+    componentId: string;
+    pinId: string;
+  } | null>(null);
+
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: "pcb-component",
+    drop: (item: { type: string }, monitor) => {
+      const offset = monitor.getClientOffset();
+      const canvas = canvasRef.current;
+      if (canvas && offset) {
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.round((offset.x - rect.left) / 10) * GRID_SIZE; // Adjust scaling as needed
+        const y = Math.round((offset.y - rect.top) / 10) * GRID_SIZE;
+        const newComponent: ComponentType = {
+          id: uuidv4(),
+          type: item.type,
+          x: x,
+          y: y,
+          rotation: 0,
+          layer: "top",
+          pins: [
+            { id: uuidv4(), name: "A", xOffset: 0, yOffset: 0 },
+            { id: uuidv4(), name: "B", xOffset: 5, yOffset: 0 },
+          ],
+        };
+        console.log("Adding PCB component:", newComponent); // Debugging
+        addComponent(newComponent);
+      }
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+    }),
+  }));
+
+  const handleStartRouting = () => {
+    setRoutingMode(true);
+    setTraceStart(null);
+    alert(
+      "Routing Mode: Click on a source pin, then a target pin to create a trace.",
+    );
+  };
+
+  const handleCancelRouting = () => {
+    setRoutingMode(false);
+    setTraceStart(null);
+  };
+
+  const handlePinClick = (componentId: string, pinId: string) => {
+    if (!routingMode) return;
+
+    if (!traceStart) {
+      setTraceStart({ componentId, pinId });
+    } else if (
+      traceStart.componentId === componentId &&
+      traceStart.pinId === pinId
+    ) {
+      // Same pin clicked again, do nothing or show a message
+      alert("Cannot connect a pin to itself.");
+    } else {
+      // Create a new trace
+      const newTrace: TraceType = {
+        id: uuidv4(),
+        fromComponentId: traceStart.componentId,
+        fromPinId: traceStart.pinId,
+        toComponentId: componentId,
+        toPinId: pinId,
+        layer: "top",
+        path: [
+          // Define a simple straight path for demonstration
+          { x: traceStart.componentId, y: traceStart.pinId }, // Replace with actual positions
+          { x: componentId, y: pinId },
+        ],
+      };
+      console.log("Adding trace:", newTrace); // Debugging
+      addTrace(newTrace);
+      setRoutingMode(false);
+      setTraceStart(null);
+    }
+  };
+
+  return (
+    <div
+      className="relative ml-64 mr-64 flex-grow overflow-auto bg-white p-4"
+      ref={canvasRef}
+      style={{
+        minWidth: "2000px", // Ensures the grid is large enough
+        minHeight: "2000px",
+      }}
+    >
+      <div
+        ref={drop}
+        className="relative h-full w-full"
+        style={{
+          backgroundSize: `${GRID_SIZE}mm ${GRID_SIZE}mm`,
+          backgroundImage:
+            "linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)",
+        }}
+      >
+        {/* Render Traces */}
+        <svg className="pointer-events-none absolute left-0 top-0 h-full w-full">
+          {traces.map((trace) => (
+            <PCBTrace key={trace.id} trace={trace} />
+          ))}
+        </svg>
+
+        {/* Render Components */}
+        {components.map((comp) => (
+          <PCBDraggableComponent
+            key={comp.id}
+            component={comp}
+            onPinClick={handlePinClick}
+          />
+        ))}
+
+        {/* Routing Controls */}
+        <div className="absolute left-1/2 top-4 -translate-x-1/2 transform space-x-2">
+          {!routingMode ? (
+            <button
+              onClick={handleStartRouting}
+              className="rounded bg-purple-500 px-4 py-2 text-white"
+            >
+              Start Routing
+            </button>
+          ) : (
+            <button
+              onClick={handleCancelRouting}
+              className="rounded bg-red-500 px-4 py-2 text-white"
+            >
+              Cancel Routing
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PCBEditorCanvas;
+
+```
+
+./src/components/pcb/PCBLayersPanel.tsx:
+
+```
+import React, { useState } from "react";
+import { usePCBEditorStore } from "../../context/PCBEditorContext";
+import { v4 as uuidv4 } from "uuid";
+
+const PCBLayersPanel: React.FC = () => {
+  const layers = usePCBEditorStore((state) => state.layers);
+  const addLayer = usePCBEditorStore((state) => state.addLayer);
+  const updateLayer = usePCBEditorStore((state) => state.updateLayer);
+  const removeLayer = usePCBEditorStore((state) => state.removeLayer);
+
+  const [newLayerName, setNewLayerName] = useState("");
+
+  const handleAddLayer = () => {
+    if (newLayerName.trim() === "") return;
+    addLayer({
+      id: uuidv4(),
+      name: newLayerName.trim(),
+      visible: true,
+    });
+    setNewLayerName("");
+  };
+
+  const handleToggleVisibility = (id: string) => {
+    const layer = layers.find((l) => l.id === id);
+    if (layer) {
+      updateLayer(id, { visible: !layer.visible });
+    }
+  };
+
+  const handleRemoveLayer = (id: string) => {
+    if (confirm("Are you sure you want to remove this layer?")) {
+      removeLayer(id);
+    }
+  };
+
+  return (
+    <div className="fixed right-0 top-0 h-full w-64 overflow-y-auto bg-gray-100 p-4">
+      <h2 className="mb-4 text-xl font-bold">Layers</h2>
+      <ul>
+        {layers.map((layer) => (
+          <li key={layer.id} className="mb-2 flex items-center">
+            <input
+              type="checkbox"
+              checked={layer.visible}
+              onChange={() => handleToggleVisibility(layer.id)}
+              className="mr-2"
+            />
+            <span className="flex-grow">{layer.name}</span>
+            <button
+              onClick={() => handleRemoveLayer(layer.id)}
+              className="text-red-500"
+              title="Remove Layer"
+            >
+              &times;
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4">
+        <input
+          type="text"
+          value={newLayerName}
+          onChange={(e) => setNewLayerName(e.target.value)}
+          placeholder="New Layer Name"
+          className="mb-2 w-full rounded border p-2"
+        />
+        <button
+          onClick={handleAddLayer}
+          className="w-full rounded bg-blue-500 p-2 text-white"
+        >
+          Add Layer
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default PCBLayersPanel;
+
+```
+
+./src/components/pcb/PCBToolsPanel.tsx:
+
+```
+import React, { useRef } from "react";
+import { usePCBEditorStore } from "../../context/PCBEditorContext";
+import {
+  exportPCBWorkspace,
+  importPCBWorkspace,
+} from "../../utils/pcbFileUtils";
+
+const PCBToolsPanel: React.FC = () => {
+  const components = usePCBEditorStore((state) => state.components);
+  const traces = usePCBEditorStore((state) => state.traces);
+  const layers = usePCBEditorStore((state) => state.layers);
+  const setComponents = usePCBEditorStore((state) => state.addComponent);
+  const setTraces = usePCBEditorStore((state) => state.addTrace);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    exportPCBWorkspace(components, traces, layers);
+  };
+
+  const handleImport = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      importPCBWorkspace(file, setComponents, setTraces);
+    }
+  };
+
+  return (
+    <div className="fixed bottom-0 right-0 flex w-full justify-center space-x-4 bg-gray-100 p-4">
+      <button
+        onClick={handleExport}
+        className="rounded bg-green-500 px-4 py-2 text-white"
+      >
+        Export PCB
+      </button>
+      <button
+        onClick={handleImport}
+        className="rounded bg-yellow-500 px-4 py-2 text-white"
+      >
+        Import PCB
+      </button>
+      <input
+        type="file"
+        accept=".json"
+        ref={fileInputRef}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      {/* Additional tools can be added here */}
+    </div>
+  );
+};
+
+export default PCBToolsPanel;
+
+```
+
+./src/components/pcb/PCBTrace.tsx:
+
+```
+import React from "react";
+import { TraceType } from "../../types/pcb";
+
+interface PCBTraceProps {
+  trace: TraceType;
+}
+
+const PCBTrace: React.FC<PCBTraceProps> = ({ trace }) => {
+  const { path } = trace;
+
+  if (path.length < 2) return null;
+
+  const points = path.map((point) => `${point.x},${point.y}`).join(" ");
+
+  return (
+    <polyline
+      points={points}
+      stroke="black"
+      strokeWidth="0.2mm"
+      fill="none"
+      markerEnd="url(#arrow)"
+    />
+  );
+};
+
+export default PCBTrace;
+
+```
+
+
+./src/components/schematic: SchematicComponentsPanel.tsx, SchematicDraggableComponent.tsx, SchematicEditor.tsx, SchematicToolsPanel.tsx
+./src/components/schematic/SchematicComponentsPanel.tsx:
+
+```
+
+import React from "react";
+import { useDrag } from "react-dnd";
+
+const COMPONENT_TYPES = ["Resistor", "Capacitor", "IC"]; // Add more as needed
+
+interface ComponentItemProps {
+  type: string;
+}
+
+const ComponentItem: React.FC<ComponentItemProps> = ({ type }) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: "component",
+    item: { type },
+    collect: (monitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+  }));
+
+  return (
+    <div
+      ref={drag}
+      className={`p-2 m-2 border rounded bg-white cursor-grab ${
+        isDragging ? "opacity-50" : "opacity-100"
+      }`}
+    >
+      {type}
+    </div>
+  );
+};
+
+const ComponentsPanel: React.FC = () => {
+  return (
+    <div className="fixed left-0 top-0 w-60 h-full bg-gray-100 overflow-y-auto p-2">
+      <h2 className="text-xl font-bold mb-4">Components</h2>
+      {COMPONENT_TYPES.map((type) => (
+        <ComponentItem key={type} type={type} />
+      ))}
+    </div>
+  );
+};
+
+export default ComponentsPanel;
+
+
+```
+
+./src/components/schematic/SchematicDraggableComponent.tsx:
+
+```
+// src/components/DraggableComponent.tsx
+
+import React from "react";
+import { useDrag } from "react-dnd";
+import { useEditorStore } from "../../context/editorStore";
+import { ComponentType } from "../../types";
+import { v4 as uuidv4 } from "uuid";
+
+interface DraggableComponentProps {
+  component: ComponentType;
+}
+
+const GRID_SIZE = 20;
+
+const DraggableComponent: React.FC<DraggableComponentProps> = ({
+  component,
+}) => {
+  const updateComponent = useEditorStore((state) => state.updateComponent);
+
+  const [{ isDragging }, drag] = useDrag(
+    () => ({
+      type: "existingComponent",
+      item: { id: component.id },
+      collect: (monitor) => ({
+        isDragging: !!monitor.isDragging(),
+      }),
+    }),
+    [component.id],
+  );
+
+  const handleDrag = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    e.preventDefault();
+    const editor = document.getElementById("editor-canvas");
+    if (!editor) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    const origX = component.x;
+    const origY = component.y;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      const newX = Math.round((origX + deltaX) / GRID_SIZE) * GRID_SIZE;
+      const newY = Math.round((origY + deltaY) / GRID_SIZE) * GRID_SIZE;
+
+      updateComponent(component.id, { x: newX, y: newY });
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  return (
+    <div
+      ref={drag}
+      onMouseDown={handleDrag}
+      className={`absolute cursor-move rounded border bg-blue-200 p-2 ${
+        isDragging ? "opacity-50" : "opacity-100"
+      }`}
+      style={{ top: component.y, left: component.x }}
+    >
+      {component.type}
+    </div>
+  );
+};
+
+export default DraggableComponent;
+
+```
+
+./src/components/schematic/SchematicEditor.tsx:
+
+```
+// src/components/SchematicEditor.tsx
+
+import DraggableComponent from "@/components/schematic/SchematicDraggableComponent";
+import { useEditorStore } from "@/context/editorStore";
+import { ComponentType } from "@/types/pcb";
+import React from "react";
+import { useDrop } from "react-dnd";
+import { v4 as uuidv4 } from "uuid";
+
+const GRID_SIZE = 20; // pixels per grid unit
+
+const SchematicEditor: React.FC = () => {
+  const addComponent = useEditorStore((state) => state.addComponent);
+  const components = useEditorStore((state) => state.components);
+
+  const [{ isOver }, drop] = useDrop(() => ({
+    accept: "component",
+    drop: (item: { type: string }, monitor) => {
+      const offset = monitor.getClientOffset();
+      const editor = document.getElementById("editor-canvas");
+      if (editor && offset) {
+        const rect = editor.getBoundingClientRect();
+        const x = Math.round((offset.x - rect.left) / GRID_SIZE) * GRID_SIZE;
+        const y = Math.round((offset.y - rect.top) / GRID_SIZE) * GRID_SIZE;
+        const newComponent: ComponentType = {
+          id: uuidv4(),
+          type: item.type,
+          x,
+          y,
+        };
+        console.log("Adding component:", newComponent); // Debugging
+        addComponent(newComponent);
+      } else {
+        console.warn("Editor canvas not found or offset is undefined.");
+      }
+    },
+    collect: (monitor) => ({
+      isOver: !!monitor.isOver(),
+    }),
+  }));
+
+  return (
+    <div
+      id="editor-canvas"
+      ref={drop}
+      className="relative ml-60 mr-60 overflow-auto bg-white p-4"
+      style={{
+        minWidth: "2000px", // Ensure the canvas is large enough
+        minHeight: "2000px",
+        backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+        backgroundImage:
+          "linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)",
+      }}
+    >
+      {components.map((comp) => (
+        <DraggableComponent key={comp.id} component={comp} />
+      ))}
+    </div>
+  );
+};
+
+export default SchematicEditor;
+
+```
+
+./src/components/schematic/SchematicToolsPanel.tsx:
+
+```
+import React, { useRef } from "react";
+import { useEditorStore } from "@/context/editorStore";
+import { exportWorkspace, importWorkspace } from "@/utils/fileUtils";
+
+const ToolsPanel: React.FC = () => {
+  const components = useEditorStore((state) => state.components);
+  const wires = useEditorStore((state) => state.wires);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    exportWorkspace(components, wires);
+  };
+
+  const handleImport = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      importWorkspace(
+        file,
+        (newComponents: ComponentType[]) => {
+          // Set imported components and wires
+        },
+        (newWires: WireType[]) => {
+          // Set imported wires
+        },
+      );
+    }
+  };
+
+  return (
+    <div className="fixed right-0 top-0 h-full w-60 bg-gray-100 p-2">
+      <h2 className="mb-4 text-xl font-bold">Tools</h2>
+      <button
+        onClick={handleExport}
+        className="mb-2 w-full rounded bg-green-500 p-2 text-white"
+      >
+        Export
+      </button>
+      <button
+        onClick={handleImport}
+        className="mb-2 w-full rounded bg-yellow-500 p-2 text-white"
+      >
+        Import
+      </button>
+      <input
+        type="file"
+        accept=".json"
+        ref={fileInputRef}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+    </div>
+  );
+};
+
+export default ToolsPanel;
+
+```
+
+
+
+./src/context: PCBEditorContext.tsx, editorStore.ts
+./src/context/PCBEditorContext.tsx:
+
+```
+import React from "react";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { ComponentType, TraceType, LayerType, DesignRules } from "../types/pcb";
+
+interface PCBEditorState {
+  components: ComponentType[];
+  traces: TraceType[];
+  layers: LayerType[];
+  designRules: DesignRules;
+  addComponent: (component: ComponentType) => void;
+  updateComponent: (id: string, updated: Partial<ComponentType>) => void;
+  removeComponent: (id: string) => void;
+  addTrace: (trace: TraceType) => void;
+  updateTrace: (id: string, updated: Partial<TraceType>) => void;
+  removeTrace: (id: string) => void;
+  addLayer: (layer: LayerType) => void;
+  updateLayer: (id: string, updated: Partial<LayerType>) => void;
+  removeLayer: (id: string) => void;
+  setDesignRules: (rules: DesignRules) => void;
+}
+
+export const usePCBEditorStore = create<PCBEditorState>(
+  persist(
+    (set) => ({
+      components: [],
+      traces: [],
+      layers: [
+        { id: "top", name: "Top Layer", visible: true },
+        { id: "bottom", name: "Bottom Layer", visible: true },
+      ],
+      designRules: {
+        traceWidth: 0.2, // in mm
+        traceSpacing: 0.15, // in mm
+      },
+      addComponent: (component) =>
+        set((state) => ({ components: [...state.components, component] })),
+      updateComponent: (id, updated) =>
+        set((state) => ({
+          components: state.components.map((comp) =>
+            comp.id === id ? { ...comp, ...updated } : comp,
+          ),
+        })),
+      removeComponent: (id) =>
+        set((state) => ({
+          components: state.components.filter((comp) => comp.id !== id),
+          traces: state.traces.filter(
+            (trace) =>
+              trace.fromComponentId !== id && trace.toComponentId !== id,
+          ),
+        })),
+      addTrace: (trace) =>
+        set((state) => ({ traces: [...state.traces, trace] })),
+      updateTrace: (id, updated) =>
+        set((state) => ({
+          traces: state.traces.map((trace) =>
+            trace.id === id ? { ...trace, ...updated } : trace,
+          ),
+        })),
+      removeTrace: (id) =>
+        set((state) => ({
+          traces: state.traces.filter((trace) => trace.id !== id),
+        })),
+      addLayer: (layer) =>
+        set((state) => ({ layers: [...state.layers, layer] })),
+      updateLayer: (id, updated) =>
+        set((state) => ({
+          layers: state.layers.map((layer) =>
+            layer.id === id ? { ...layer, ...updated } : layer,
+          ),
+        })),
+      removeLayer: (id) =>
+        set((state) => ({
+          layers: state.layers.filter((layer) => layer.id !== id),
+        })),
+      setDesignRules: (rules) => set(() => ({ designRules: rules })),
+    }),
+    {
+      name: "pcb-editor-storage", // unique name
+      getStorage: () => localStorage, // specify storage
+    },
+  ),
+);
+
+interface PCBEditorProviderProps {
+  children: React.ReactNode;
+}
+
+export const PCBEditorProvider: React.FC<PCBEditorProviderProps> = ({
+  children,
+}) => {
+  return <>{children}</>;
+};
+
+```
+
+./src/context/editorStore.ts:
+
+```
+import { create } from "zustand";
+import { ComponentType, WireType } from "../types";
+
+interface EditorState {
+  components: ComponentType[];
+  wires: WireType[];
+  addComponent: (component: ComponentType) => void;
+  updateComponent: (id: string, updated: Partial<ComponentType>) => void;
+  addWire: (wire: WireType) => void;
+  setComponents: (components: ComponentType[]) => void;
+  setWires: (wires: WireType[]) => void;
+}
+
+export const useEditorStore = create<EditorState>((set) => ({
+  components: [],
+  wires: [],
+  addComponent: (component) =>
+    set((state) => ({ components: [...state.components, component] })),
+  updateComponent: (id, updated) =>
+    set((state) => ({
+      components: state.components.map((comp) =>
+        comp.id === id ? { ...comp, ...updated } : comp,
+      ),
+    })),
+  addWire: (wire) => set((state) => ({ wires: [...state.wires, wire] })),
+  setComponents: (components) => set(() => ({ components })),
+  setWires: (wires) => set(() => ({ wires })),
+}));
+
+// Persist to localStorage
+useEditorStore.subscribe((state) => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(
+      "eda-workspace",
+      JSON.stringify({
+        components: state.components,
+        wires: state.wires,
+      }),
+    );
+  }
+});
+
+// Initialize from localStorage
+if (typeof window !== "undefined") {
+  const saved = localStorage.getItem("eda-workspace");
+  if (saved) {
+    const { components, wires } = JSON.parse(saved);
+    useEditorStore.setState({ components, wires });
+  }
+}
+
+```
+
+
+./src/env.js:
+
+
+./src/pages: _app.tsx, index.tsx, pcb.tsx, schematic.tsx
+./src/pages/_app.tsx:
+
+```
+import { GeistSans } from "geist/font/sans";
+import { type Session } from "next-auth";
+import { SessionProvider } from "next-auth/react";
+import { type AppType } from "next/app";
+
+import { api } from "@/utils/api";
+
+import "@/styles/globals.css";
+
+const MyApp: AppType<{ session: Session | null }> = ({
+  Component,
+  pageProps: { session, ...pageProps },
+}) => {
+  return (
+    <SessionProvider session={session}>
+      <div className={GeistSans.className}>
+        <Component {...pageProps} />
+      </div>
+    </SessionProvider>
+  );
+};
+
+export default api.withTRPC(MyApp);
+
+```
+
+./src/pages/api: 
+./src/pages/api/auth: [...nextauth].ts
+./src/pages/api/auth/[...nextauth].ts:
+
+```
+import NextAuth from "next-auth";
+
+import { authOptions } from "@/server/auth";
+
+export default NextAuth(authOptions);
+
+```
+
+
+./src/pages/api/trpc: [trpc].ts
+./src/pages/api/trpc/[trpc].ts:
+
+```
+import { createNextApiHandler } from "@trpc/server/adapters/next";
+
+import { env } from "@/env";
+import { appRouter } from "@/server/api/root";
+import { createTRPCContext } from "@/server/api/trpc";
+
+// export API handler
+export default createNextApiHandler({
+  router: appRouter,
+  createContext: createTRPCContext,
+  onError:
+    env.NODE_ENV === "development"
+      ? ({ path, error }) => {
+          console.error(
+            `❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`
+          );
+        }
+      : undefined,
+});
+
+```
+
+
+
+./src/pages/index.tsx:
+
+```
+import React from "react";
+import Link from "next/link";
+
+const HomePage: React.FC = () => {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
+      <h1 className="mb-8 text-4xl font-bold">Welcome to EDA Web App</h1>
+      <div className="space-x-4">
+        <Link
+          href="/schematic"
+          className="rounded-lg bg-blue-500 px-6 py-3 text-white shadow-md hover:bg-blue-600"
+        >
+          Open Schematic Editor
+        </Link>
+        <Link
+          href="/pcb"
+          className="rounded-lg bg-green-500 px-6 py-3 text-white shadow-md hover:bg-green-600"
+        >
+          Open PCB Editor
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;
+
+```
+
+./src/pages/pcb.tsx:
+
+```
+import React from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import PCBComponentsPanel from "../components/pcb/PCBComponentsPanel";
+import PCBLayersPanel from "../components/pcb/PCBLayersPanel";
+import PCBToolsPanel from "../components/pcb/PCBToolsPanel";
+import PCBEditorCanvas from "../components/pcb/PCBEditorCanvas";
+import { PCBEditorProvider } from "../context/PCBEditorContext";
+import Link from "next/link";
+
+const PCBPage: React.FC = () => {
+  return (
+    <PCBEditorProvider>
+      <DndProvider backend={HTML5Backend}>
+        <div className="flex h-screen">
+          <PCBComponentsPanel />
+          <PCBEditorCanvas />
+          <PCBLayersPanel />
+          <PCBToolsPanel />
+        </div>
+        <Link
+          href="/"
+          className="absolute left-4 top-4 rounded bg-gray-800 px-4 py-2 text-white"
+        >
+          Back to Home
+        </Link>
+      </DndProvider>
+    </PCBEditorProvider>
+  );
+};
+
+export default PCBPage;
+
+```
+
+./src/pages/schematic.tsx:
+
+```
+import React from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import Link from "next/link";
+import ComponentsPanel from "@/components/schematic/SchematicComponentsPanel";
+import SchematicEditor from "@/components/schematic/SchematicEditor";
+import ToolsPanel from "@/components/schematic/SchematicToolsPanel";
+
+const SchematicPage: React.FC = () => {
+  return (
+    <DndProvider backend={HTML5Backend}>
+      <div className="flex">
+        <ComponentsPanel />
+        <SchematicEditor />
+        <ToolsPanel />
+      </div>
+      <Link
+        href="/"
+        className="absolute left-4 top-4 rounded bg-gray-800 px-4 py-2 text-white"
+      >
+        Back to Home
+      </Link>
+    </DndProvider>
+  );
+};
+
+export default SchematicPage;
+
+```
+
+./src/styles: globals.css
+./src/styles/globals.css:
+
+```
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+```
+
+
+./src/types: index.ts, pcb.ts
+./src/types/index.ts:
+
+```
+
+export interface ComponentType {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  // Add more properties as needed
+}
+
+export interface WireType {
+  id: string;
+  from: string; // Component ID
+  to: string;   // Component ID
+}
+
+
+```
+
+./src/types/pcb.ts:
+
+```
+export interface ComponentType {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  rotation: number; // in degrees
+  layer: string; // layer ID
+  pins: PinType[];
+}
+
+export interface PinType {
+  id: string;
+  name: string;
+  xOffset: number;
+  yOffset: number;
+}
+
+export interface TraceType {
+  id: string;
+  fromComponentId: string;
+  fromPinId: string;
+  toComponentId: string;
+  toPinId: string;
+  layer: string; // layer ID
+  path: Array<{ x: number; y: number }>; // array of points
+}
+
+export interface LayerType {
+  id: string;
+  name: string;
+  visible: boolean;
+}
+
+export interface DesignRules {
+  traceWidth: number; // in mm
+  traceSpacing: number; // in mm
+}
+
+```
+
+
+./src/utils: api.ts, fileUtils.ts, pcbFileUtils.ts
+./src/utils/api.ts:
+
+```
+/**
+ * This is the client-side entrypoint for your tRPC API. It is used to create the `api` object which
+ * contains the Next.js App-wrapper, as well as your type-safe React Query hooks.
+ *
+ * We also create a few inference helpers for input and output types.
+ */
+import { httpBatchLink, loggerLink } from "@trpc/client";
+import { createTRPCNext } from "@trpc/next";
+import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
+import superjson from "superjson";
+
+import { type AppRouter } from "@/server/api/root";
+
+const getBaseUrl = () => {
+  if (typeof window !== "undefined") return ""; // browser should use relative url
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`; // SSR should use vercel url
+  return `http://localhost:${process.env.PORT ?? 3000}`; // dev SSR should use localhost
+};
+
+/** A set of type-safe react-query hooks for your tRPC API. */
+export const api = createTRPCNext<AppRouter>({
+  config() {
+    return {
+      /**
+       * Links used to determine request flow from client to server.
+       *
+       * @see https://trpc.io/docs/links
+       */
+      links: [
+        loggerLink({
+          enabled: (opts) =>
+            process.env.NODE_ENV === "development" ||
+            (opts.direction === "down" && opts.result instanceof Error),
+        }),
+        httpBatchLink({
+          /**
+           * Transformer used for data de-serialization from the server.
+           *
+           * @see https://trpc.io/docs/data-transformers
+           */
+          transformer: superjson,
+          url: `${getBaseUrl()}/api/trpc`,
+        }),
+      ],
+    };
+  },
+  /**
+   * Whether tRPC should await queries when server rendering pages.
+   *
+   * @see https://trpc.io/docs/nextjs#ssr-boolean-default-false
+   */
+  ssr: false,
+  transformer: superjson,
+});
+
+/**
+ * Inference helper for inputs.
+ *
+ * @example type HelloInput = RouterInputs['example']['hello']
+ */
+export type RouterInputs = inferRouterInputs<AppRouter>;
+
+/**
+ * Inference helper for outputs.
+ *
+ * @example type HelloOutput = RouterOutputs['example']['hello']
+ */
+export type RouterOutputs = inferRouterOutputs<AppRouter>;
+
+```
+
+./src/utils/fileUtils.ts:
+
+```
+
+import { ComponentType, WireType } from "../types";
+
+export const exportWorkspace = (components: ComponentType[], wires: WireType[]) => {
+  const data = { components, wires };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "workspace.json";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+export const importWorkspace = (file: File, setComponents: Function, setWires: Function) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target?.result as string);
+      setComponents(data.components || []);
+      setWires(data.wires || []);
+    } catch (error) {
+      alert("Invalid file format");
+    }
+  };
+  reader.readAsText(file);
+};
+
+
+```
+
+./src/utils/pcbFileUtils.ts:
+
+```
+import { ComponentType, TraceType, LayerType } from "../types/pcb";
+import { usePCBEditorStore } from "../context/PCBEditorContext";
+
+interface PCBWorkspace {
+  components: ComponentType[];
+  traces: TraceType[];
+  layers: LayerType[];
+}
+
+export const exportPCBWorkspace = (
+  components: ComponentType[],
+  traces: TraceType[],
+  layers: LayerType[],
+) => {
+  const data: PCBWorkspace = { components, traces, layers };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "pcb-workspace.json";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+export const importPCBWorkspace = (
+  file: File,
+  addComponent: (component: ComponentType) => void,
+  addTrace: (trace: TraceType) => void,
+  setLayers: (layers: LayerType[]) => void,
+) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data: PCBWorkspace = JSON.parse(e.target?.result as string);
+      if (data.components && data.traces && data.layers) {
+        // Clear existing workspace
+        // Assuming there are actions to reset components and traces
+        // Implement as needed
+        // For now, we'll simply add the imported components and traces
+        data.components.forEach((comp) => addComponent(comp));
+        data.traces.forEach((trace) => addTrace(trace));
+        setLayers(data.layers);
+      } else {
+        alert("Invalid PCB workspace file.");
+      }
+    } catch (error) {
+      alert("Error parsing PCB workspace file.");
+    }
+  };
+  reader.readAsText(file);
+};
+
+```
+
+
+
+./start-database.sh:
+
+```
+#!/usr/bin/env bash
+# Use this script to start a docker container for a local development database
+
+# TO RUN ON WINDOWS:
+# 1. Install WSL (Windows Subsystem for Linux) - https://learn.microsoft.com/en-us/windows/wsl/install
+# 2. Install Docker Desktop for Windows - https://docs.docker.com/docker-for-windows/install/
+# 3. Open WSL - `wsl`
+# 4. Run this script - `./start-database.sh`
+
+# On Linux and macOS you can run this script directly - `./start-database.sh`
+
+DB_CONTAINER_NAME="eda-postgres"
+
+if ! [ -x "$(command -v docker)" ]; then
+  echo -e "Docker is not installed. Please install docker and try again.\nDocker install guide: https://docs.docker.com/engine/install/"
+  exit 1
+fi
+
+if [ "$(docker ps -q -f name=$DB_CONTAINER_NAME)" ]; then
+  echo "Database container '$DB_CONTAINER_NAME' already running"
+  exit 0
+fi
+
+if [ "$(docker ps -q -a -f name=$DB_CONTAINER_NAME)" ]; then
+  docker start "$DB_CONTAINER_NAME"
+  echo "Existing database container '$DB_CONTAINER_NAME' started"
+  exit 0
+fi
+
+# import env variables from .env
+set -a
+source .env
+
+DB_PASSWORD=$(echo "$DATABASE_URL" | awk -F':' '{print $3}' | awk -F'@' '{print $1}')
+DB_PORT=$(echo "$DATABASE_URL" | awk -F':' '{print $4}' | awk -F'\/' '{print $1}')
+
+if [ "$DB_PASSWORD" = "password" ]; then
+  echo "You are using the default database password"
+  read -p "Should we generate a random password for you? [y/N]: " -r REPLY
+  if ! [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Please change the default password in the .env file and try again"
+    exit 1
+  fi
+  # Generate a random URL-safe password
+  DB_PASSWORD=$(openssl rand -base64 12 | tr '+/' '-_')
+  sed -i -e "s#:password@#:$DB_PASSWORD@#" .env
+fi
+
+docker run -d \
+  --name $DB_CONTAINER_NAME \
+  -e POSTGRES_USER="postgres" \
+  -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+  -e POSTGRES_DB=eda \
+  -p "$DB_PORT":5432 \
+  docker.io/postgres && echo "Database container '$DB_CONTAINER_NAME' was successfully created"
+
+```
+
+./tailwind.config.ts:
+
+```
+import { type Config } from "tailwindcss";
+import { fontFamily } from "tailwindcss/defaultTheme";
+
+export default {
+  content: ["./src/**/*.tsx"],
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ["var(--font-geist-sans)", ...fontFamily.sans],
+      },
+    },
+  },
+  plugins: [],
+} satisfies Config;
+
+```
+
+./tsconfig.json:
+
+```
+{
+  "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "checkJs": true,
+
+    /* Bundled projects */
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "plugins": [{ "name": "next" }],
+    "incremental": true,
+
+    /* Path Aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    ".eslintrc.cjs",
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.cjs",
+    "**/*.js",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
+
+```
+
+
