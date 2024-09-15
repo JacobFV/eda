@@ -1,3 +1,5 @@
+// src/context/PCBEditorContext.tsx
+
 import React from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -8,6 +10,7 @@ interface PCBEditorState {
   traces: TraceType[];
   layers: LayerType[];
   designRules: DesignRules;
+  selectedComponentIds: string[]; // For multi-selection
   addComponent: (component: ComponentType) => void;
   updateComponent: (id: string, updated: Partial<ComponentType>) => void;
   removeComponent: (id: string) => void;
@@ -18,6 +21,9 @@ interface PCBEditorState {
   updateLayer: (id: string, updated: Partial<LayerType>) => void;
   removeLayer: (id: string) => void;
   setDesignRules: (rules: DesignRules) => void;
+  selectComponent: (id: string, multi: boolean) => void;
+  deselectComponent: (id: string) => void;
+  clearSelection: () => void;
 }
 
 export const usePCBEditorStore = create<PCBEditorState>(
@@ -33,6 +39,7 @@ export const usePCBEditorStore = create<PCBEditorState>(
         traceWidth: 0.2, // in mm
         traceSpacing: 0.15, // in mm
       },
+      selectedComponentIds: [],
       addComponent: (component) =>
         set((state) => ({ components: [...state.components, component] })),
       updateComponent: (id, updated) =>
@@ -47,6 +54,9 @@ export const usePCBEditorStore = create<PCBEditorState>(
           traces: state.traces.filter(
             (trace) =>
               trace.fromComponentId !== id && trace.toComponentId !== id,
+          ),
+          selectedComponentIds: state.selectedComponentIds.filter(
+            (compId) => compId !== id,
           ),
         })),
       addTrace: (trace) =>
@@ -74,6 +84,19 @@ export const usePCBEditorStore = create<PCBEditorState>(
           layers: state.layers.filter((layer) => layer.id !== id),
         })),
       setDesignRules: (rules) => set(() => ({ designRules: rules })),
+      selectComponent: (id, multi) =>
+        set((state) => ({
+          selectedComponentIds: multi
+            ? Array.from(new Set([...state.selectedComponentIds, id]))
+            : [id],
+        })),
+      deselectComponent: (id) =>
+        set((state) => ({
+          selectedComponentIds: state.selectedComponentIds.filter(
+            (compId) => compId !== id,
+          ),
+        })),
+      clearSelection: () => set(() => ({ selectedComponentIds: [] })),
     }),
     {
       name: "pcb-editor-storage", // unique name

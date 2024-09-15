@@ -1,44 +1,29 @@
+// src/components/schematic/SchematicComponentsPanel.tsx
 
 import React from "react";
-import { useDrag } from "react-dnd";
+import DraggableComponent from "../shared/DraggableComponent";
+import { Schematic_COMPONENT_TYPES } from "../../data/componentsConfig";
 
-const COMPONENT_TYPES = ["Resistor", "Capacitor", "IC"]; // Add more as needed
+interface SchematicComponentsPanelProps {}
 
-interface ComponentItemProps {
-  type: string;
-}
-
-const ComponentItem: React.FC<ComponentItemProps> = ({ type }) => {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: "component",
-    item: { type },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
-
+const SchematicComponentsPanel: React.FC<
+  SchematicComponentsPanelProps
+> = () => {
   return (
-    <div
-      ref={drag}
-      className={`p-2 m-2 border rounded bg-white cursor-grab ${
-        isDragging ? "opacity-50" : "opacity-100"
-      }`}
-    >
-      {type}
-    </div>
-  );
-};
-
-const ComponentsPanel: React.FC = () => {
-  return (
-    <div className="fixed left-0 top-0 w-60 h-full bg-gray-100 overflow-y-auto p-2">
-      <h2 className="text-xl font-bold mb-4">Components</h2>
-      {COMPONENT_TYPES.map((type) => (
-        <ComponentItem key={type} type={type} />
+    <div className="fixed left-0 top-0 h-full w-60 overflow-y-auto bg-gray-100 p-4">
+      <h2 className="mb-4 text-xl font-bold">Components</h2>
+      {Schematic_COMPONENT_TYPES.map((comp) => (
+        <DraggableComponent
+          key={comp.type}
+          id={comp.type}
+          type="schematic-component"
+          style={{ backgroundColor: "green", color: "white" }}
+        >
+          {comp.type}
+        </DraggableComponent>
       ))}
     </div>
   );
 };
 
-export default ComponentsPanel;
-
+export default SchematicComponentsPanel;

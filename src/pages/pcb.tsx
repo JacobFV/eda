@@ -1,3 +1,5 @@
+// src/pages/pcb.tsx
+
 import React from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -7,6 +9,7 @@ import PCBToolsPanel from "../components/pcb/PCBToolsPanel";
 import PCBEditorCanvas from "../components/pcb/PCBEditorCanvas";
 import { PCBEditorProvider } from "../context/PCBEditorContext";
 import Link from "next/link";
+import DetailsPanel from "../components/shared/DetailsPanel";
 
 const PCBPage: React.FC = () => {
   return (
@@ -17,6 +20,7 @@ const PCBPage: React.FC = () => {
           <PCBEditorCanvas />
           <PCBLayersPanel />
           <PCBToolsPanel />
+          <DetailsPanel /> {/* Add DetailsPanel here */}
         </div>
         <Link
           href="/"

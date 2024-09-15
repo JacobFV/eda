@@ -7,6 +7,7 @@ import { ComponentType, TraceType } from "../../types/pcb";
 import { v4 as uuidv4 } from "uuid";
 import PCBDraggableComponent from "./PCBDraggableComponent";
 import PCBTrace from "./PCBTrace";
+import DetailsPanel from "../shared/DetailsPanel";
 
 const GRID_SIZE = 0.5; // mm
 
@@ -17,6 +18,7 @@ const PCBEditorCanvas: React.FC = () => {
   const layers = usePCBEditorStore((state) => state.layers);
   const addTrace = usePCBEditorStore((state) => state.addTrace);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const clearSelection = usePCBEditorStore((state) => state.clearSelection);
 
   const [routingMode, setRoutingMode] = useState<boolean>(false);
   const [traceStart, setTraceStart] = useState<{
@@ -24,35 +26,40 @@ const PCBEditorCanvas: React.FC = () => {
     pinId: string;
   } | null>(null);
 
-  const [{ isOver }, drop] = useDrop(() => ({
-    accept: "pcb-component",
-    drop: (item: { type: string }, monitor) => {
-      const offset = monitor.getClientOffset();
-      const canvas = canvasRef.current;
-      if (canvas && offset) {
-        const rect = canvas.getBoundingClientRect();
-        const x = Math.round((offset.x - rect.left) / 10) * GRID_SIZE; // Adjust scaling as needed
-        const y = Math.round((offset.y - rect.top) / 10) * GRID_SIZE;
-        const newComponent: ComponentType = {
-          id: uuidv4(),
-          type: item.type,
-          x: x,
-          y: y,
-          rotation: 0,
-          layer: "top",
-          pins: [
-            { id: uuidv4(), name: "A", xOffset: 0, yOffset: 0 },
-            { id: uuidv4(), name: "B", xOffset: 5, yOffset: 0 },
-          ],
-        };
-        console.log("Adding PCB component:", newComponent); // Debugging
-        addComponent(newComponent);
-      }
-    },
-    collect: (monitor) => ({
-      isOver: !!monitor.isOver(),
+  const [{ isOver }, drop] = useDrop(
+    () => ({
+      accept: "pcb-component",
+      drop: (item: { id: string; type: string }, monitor) => {
+        const offset = monitor.getClientOffset();
+        const canvas = canvasRef.current;
+        if (canvas && offset) {
+          const rect = canvas.getBoundingClientRect();
+          const x = Math.round((offset.x - rect.left) / 10) * GRID_SIZE; // Adjust scaling as needed
+          const y = Math.round((offset.y - rect.top) / 10) * GRID_SIZE;
+          const newComponent: ComponentType = {
+            id: uuidv4(),
+            type: item.type,
+            x: x,
+            y: y,
+            rotation: 0,
+            layer: "top",
+            pins: Array.from({ length: 2 }, (_, index) => ({
+              id: uuidv4(),
+              name: `Pin${index + 1}`,
+              xOffset: 0,
+              yOffset: 0,
+            })),
+          };
+          console.log("Adding PCB component:", newComponent); // Debugging
+          addComponent(newComponent);
+        }
+      },
+      collect: (monitor) => ({
+        isOver: !!monitor.isOver(),
+      }),
     }),
-  }));
+    [addComponent],
+  );
 
   const handleStartRouting = () => {
     setRoutingMode(true);
@@ -89,8 +96,8 @@ const PCBEditorCanvas: React.FC = () => {
         layer: "top",
         path: [
           // Define a simple straight path for demonstration
-          { x: traceStart.componentId, y: traceStart.pinId }, // Replace with actual positions
-          { x: componentId, y: pinId },
+          { x: 0, y: 0 }, // Replace with actual positions
+          { x: 10, y: 10 },
         ],
       };
       console.log("Adding trace:", newTrace); // Debugging
@@ -98,6 +105,10 @@ const PCBEditorCanvas: React.FC = () => {
       setRoutingMode(false);
       setTraceStart(null);
     }
+  };
+
+  const handleCanvasClick = () => {
+    clearSelection();
   };
 
   return (
@@ -108,6 +119,7 @@ const PCBEditorCanvas: React.FC = () => {
         minWidth: "2000px", // Ensures the grid is large enough
         minHeight: "2000px",
       }}
+      onClick={handleCanvasClick}
     >
       <div
         ref={drop}
@@ -153,6 +165,8 @@ const PCBEditorCanvas: React.FC = () => {
           )}
         </div>
       </div>
+      <DetailsPanel />{" "}
+      {/* Ensure DetailsPanel is inside the canvas if needed */}
     </div>
   );
 };

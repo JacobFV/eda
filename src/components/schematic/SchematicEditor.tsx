@@ -1,6 +1,6 @@
-// src/components/SchematicEditor.tsx
+// src/components/schematic/SchematicEditor.tsx
 
-import DraggableComponent from "@/components/schematic/SchematicDraggableComponent";
+import SharedDraggableComponent from "../shared/DraggableComponent";
 import { useEditorStore } from "@/context/editorStore";
 import { ComponentType } from "@/types/pcb";
 import React from "react";
@@ -14,8 +14,8 @@ const SchematicEditor: React.FC = () => {
   const components = useEditorStore((state) => state.components);
 
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: "component",
-    drop: (item: { type: string }, monitor) => {
+    accept: "schematic-component",
+    drop: (item: { id: string; type: string }, monitor) => {
       const offset = monitor.getClientOffset();
       const editor = document.getElementById("editor-canvas");
       if (editor && offset) {
@@ -27,6 +27,7 @@ const SchematicEditor: React.FC = () => {
           type: item.type,
           x,
           y,
+          // Add other properties as needed
         };
         console.log("Adding component:", newComponent); // Debugging
         addComponent(newComponent);
@@ -53,7 +54,15 @@ const SchematicEditor: React.FC = () => {
       }}
     >
       {components.map((comp) => (
-        <DraggableComponent key={comp.id} component={comp} />
+        <SharedDraggableComponent
+          key={comp.id}
+          component={comp}
+          onRemove={() => {
+            if (confirm("Remove this component?")) {
+              useEditorStore.getState().removeComponent(comp.id);
+            }
+          }}
+        />
       ))}
     </div>
   );
